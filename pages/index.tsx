@@ -1,9 +1,74 @@
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import type { NextPage } from 'next';
-import Head from 'next/head';
-import styles from '../styles/Home.module.css';
+import { useState, useEffect } from "react";
+
+import type { NextPage } from "next";
+import Head from "next/head";
+
+import { ethers } from "ethers";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+
+import Hexacoin from "../contract/abi/hexacoin.json";
+
+import styles from "../styles/Home.module.css";
 
 const Home: NextPage = () => {
+  const [provider, setProvider] = useState<any>(null);
+  const [signer, setSigner] = useState<any>(null);
+  const [hexacoin, setHexacoin] = useState<any>(null);
+  const [balance, setBalance] = useState<string>("0");
+  const [account, setAccount] = useState<string | null>(null);
+
+  const hexacoinAddress = "0x5bc313c84cad54fabaf2f412579c9c2c0eb37d75";
+
+  useEffect(() => {
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      setProvider(provider);
+      const signer = provider.getSigner();
+      setSigner(signer);
+    } else {
+      console.log("Please install MetaMask!");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (signer) {
+      signer.getAddress().then((address: string) => setAccount(address));
+    }
+  }, [signer]);
+
+  useEffect(() => {
+    if (provider && account) {
+      const contract = new ethers.Contract(hexacoinAddress, Hexacoin, provider);
+      setHexacoin(contract);
+
+      contract.balanceOf(account).then((balance: ethers.BigNumber) => {
+        setBalance(ethers.utils.formatEther(balance));
+      });
+    }
+  }, [provider, account]);
+
+  const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    // Récupérez les champs de saisie à partir de l'objet form
+    const form = event.target as HTMLFormElement;
+    const toAddress = form.elements.namedItem("to") as HTMLInputElement;
+    const amountToSend = form.elements.namedItem("amount") as HTMLInputElement;
+
+    if (hexacoin && signer) {
+      const hexacoinWithSigner = hexacoin.connect(signer);
+      const amount = ethers.utils.parseEther(amountToSend.value);
+      try {
+        const tx = await hexacoinWithSigner.transfer(toAddress.value, amount);
+        await tx.wait();
+        alert("Transfer successful!");
+      } catch (error) {
+        console.error(error);
+        alert("Transfer failed!");
+      }
+    }
+  };
+
   return (
     <div className={styles.container}>
       <Head>
@@ -19,12 +84,26 @@ const Home: NextPage = () => {
         <ConnectButton />
 
         <h1 className={styles.title}>
-          Welcome to <a href="">RainbowKit</a> + <a href="">wagmi</a> +{' '}
+          Welcome to <a href="">RainbowKit</a> + <a href="">wagmi</a> +{" "}
           <a href="https://nextjs.org">Next.js!</a>
         </h1>
 
+        <p>Balance Hexacoin: {balance}</p>
+
+        <form onSubmit={onSubmit}>
+          <label>
+            To:
+            <input name="to" />
+          </label>
+          <label>
+            Amount:
+            <input name="amount" />
+          </label>
+          <button type="submit">Transfer</button>
+        </form>
+
         <p className={styles.description}>
-          Get started by editing{' '}
+          Get started by editing{" "}
           <code className={styles.code}>pages/index.tsx</code>
         </p>
 
